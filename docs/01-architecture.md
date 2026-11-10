@@ -179,6 +179,10 @@ Deux fichiers de configuration, deux responsabilités : `config/omniforge.toml` 
 supervision par défaut, limites de sandbox) et `config/litellm.config.yaml` (alias →
 modèles, clés).
 
+L'interface peut aussi être déployée seule sur un hébergement statique tel que Vercel : sans
+backend, elle rejoue des enregistrements de runs. Les variantes de déploiement sont décrites
+dans [5. Déploiement](05-deploiement.md).
+
 ## 1.7 Décisions structurantes
 
 | Décision | Alternative écartée | Raison |

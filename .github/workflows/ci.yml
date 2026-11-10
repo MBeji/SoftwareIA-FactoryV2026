@@ -65,3 +65,29 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
+
+  images:
+    name: Container images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: API image
+        run: docker build -f backend/Dockerfile -t omniforge-api .
+      - name: All-in-one demo image
+        run: docker build -f backend/Dockerfile.demo -t omniforge-demo .
+      - name: Web image
+        run: docker build -t omniforge-web web
+      - name: The demo image serves a complete run
+        run: |
+          docker run -d --name demo -e PORT=8080 -e OMNIFORGE_SIM_DELAY_MS=0 -p 127.0.0.1:8080:8080 omniforge-demo
+          for i in $(seq 1 30); do curl -fs localhost:8080/health && break; sleep 1; done
+          id=$(curl -fs -X POST localhost:8080/api/runs -H 'content-type: application/json' \
+            -d '{"input":"Créer un endpoint FastAPI sécurisé avec JWT","supervision":{"default_mode":"autonomous"}}' | jq -r .id)
+          for i in $(seq 1 120); do
+            status=$(curl -fs "localhost:8080/api/runs/$id" | jq -r .status)
+            case "$status" in completed) exit 0 ;; failed|cancelled|interrupted) break ;; esac
+            sleep 1
+          done
+          curl -s "localhost:8080/api/runs/$id" | jq '{status, error}'
+          docker logs demo
+          exit 1

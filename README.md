@@ -6,7 +6,17 @@ Architecte, QA, Développeurs, Auditeur sécurité, Relecteur — sous un cycle 
 dans une sandbox isolée, avec un niveau de supervision humaine réglable de « je valide
 chaque étape » à « zéro contact ».
 
-![Mission Control](docs/screenshots/mission-control.png)
+![Mission Control pendant un run : graphe des agents, volet Méthode, terminal](docs/screenshots/mission-control.png)
+
+<details>
+<summary>Autres vues</summary>
+
+| | |
+|---|---|
+| ![Portail de validation](docs/screenshots/portail-validation.png) Portail de validation | ![Graphe des tâches](docs/screenshots/dag-taches.png) Tâches et dépendances |
+| ![Workspace et diffs](docs/screenshots/workspace-diff.png) Workspace et diffs | ![Accueil](docs/screenshots/accueil.png) Accueil et aperçu du plan |
+
+</details>
 
 | | |
 |---|---|
@@ -65,6 +75,17 @@ docker compose up --build          # IHM : http://localhost:3000 — API : http:
 
 Chaque run s'exécute alors dans son propre conteneur : sans réseau, sans capacité Linux,
 mémoire, CPU et nombre de processus bornés.
+
+### Sur Vercel
+
+1. Importer le dépôt sur [vercel.com/new](https://vercel.com/new).
+2. Régler **Root Directory** sur `web`.
+3. Déployer, sans aucune variable d'environnement.
+
+L'interface fonctionne alors en **mode démonstration** : elle rejoue trois enregistrements
+de vrais runs. Vercel n'héberge que l'interface ; pour lancer vos propres runs depuis ce
+site, il faut lui donner l'adresse d'un backend hébergé ailleurs — voir
+[docs/05-deploiement.md](docs/05-deploiement.md).
 
 ### Avec de vrais modèles
 
@@ -129,7 +150,8 @@ un humain sur la merge request finale, avec un plafond de dépense.
 | [1. Architecture](docs/01-architecture.md) | Composants, schéma, routage multi-modèles, sécurité, décisions, périmètre réel du MVP |
 | [2. Cycle de vie d'une tâche](docs/02-cycle-de-vie.md) | Du cahier des charges à la merge request, boucle TDD, matrice de supervision |
 | [3. Agents](docs/03-agents.md) | Rôles, personas, entrées, sorties, outils, garde-fous |
-| [4. IHM](docs/04-ihm.md) | Vues, composants, flux de données de Mission Control |
+| [4. IHM](docs/04-ihm.md) | Vues, composants, flux de données de Mission Control, mode démonstration |
+| [5. Déploiement](docs/05-deploiement.md) | Vercel (démonstration ou backend hébergé), Docker Compose, précautions |
 
 ## Organisation du dépôt
 
@@ -141,7 +163,11 @@ backend/               moteur Rust : orchestrateur, agents, routeur LLM, sandbox
   src/ingestion/         classification, planification HTN, risques, sprints
   src/sandbox/           sandbox Docker durcie, sandbox locale, workspace
   tests/                 tests de bout en bout, API, passerelle, Docker
+  Dockerfile             image de l'API (sandbox Docker)
+  Dockerfile.demo        image tout-en-un pour un essai sur une plateforme de conteneurs
 web/                   IHM Mission Control (Next.js, Tailwind, React Flow)
+  public/demo/           enregistrements de runs rejoués en mode démonstration
+  scripts/               enregistreur de démonstrations
 config/
   omniforge.toml         routage, supervision par défaut, limites de sandbox
   litellm.config.yaml    alias → modèles des fournisseurs
@@ -201,7 +227,8 @@ vraie exécution de `pytest` et de `ruff`.
 
 Le cœur est en place et testé : pipeline complet, boucle TDD avec auto-correction, matrice
 de supervision, routage multi-modèles, sandbox Docker, ingestion et planification, API
-temps réel, IHM.
+temps réel, IHM (parcours vérifiés dans un navigateur, en mode connecté et en mode
+démonstration).
 
 Les limites à connaître avant de s'appuyer dessus :
 

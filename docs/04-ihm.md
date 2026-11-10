@@ -31,6 +31,11 @@ donc, par construction, ce que contient la piste d'audit.
 Si le WebSocket ne peut pas s'ouvrir, le flux bascule sur une interrogation périodique de
 `/events?since=` : mêmes événements, même réducteur.
 
+Une troisième source existe pour les déploiements sans backend : le **mode démonstration**
+(§4.6), qui rejoue le journal d'un run enregistré. Les composants ne font pas la
+différence : seule la source des événements change (`lib/api.ts` choisit entre le backend
+et `lib/demo.ts`).
+
 ## 4.2 Vues
 
 ### Accueil — lancer et retrouver des runs
@@ -192,17 +197,21 @@ web/src/
   lib/
     types.ts                      types des événements, de l'état, du plan, de la politique
     reducer.ts                    projection événements → état
-    use-run-stream.ts             WebSocket, reconnexion, repli en interrogation
+    use-run-stream.ts             WebSocket, reconnexion, repli en interrogation, rejeu
     use-speech-input.ts           dictée vocale
-    api.ts                        client REST typé
+    api.ts                        source de données : backend ou enregistrements
+    demo.ts                       mode démonstration : chargement et rejeu des enregistrements
+web/public/demo/                  enregistrements (journal d'événements, workspace final, diff)
+web/scripts/record-demo.mjs       capture les enregistrements depuis un backend en marche
 ```
 
 ## 4.5 Configuration
 
 | Variable | Défaut | Rôle |
 |---|---|---|
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8080` | Adresse de l'API vue par le navigateur |
+| `NEXT_PUBLIC_API_URL` | voir §4.6 | Adresse de l'API vue par le navigateur |
 | `NEXT_PUBLIC_API_KEY` | — | Clé envoyée à l'API si `OMNIFORGE_API_KEY` est définie |
+| `NEXT_PUBLIC_DEMO_MODE` | — | `1` force le mode démonstration |
 
 Ces variables sont intégrées au bundle servi au navigateur : la clé d'API y est donc
 lisible par quiconque accède à l'IHM. Elle protège une instance contre un accès direct à
@@ -211,3 +220,35 @@ relève de la passerelle d'entreprise placée devant le service.
 
 L'origine de l'IHM doit figurer dans `OMNIFORGE_CORS_ORIGINS` côté API, faute de quoi les
 écritures et le flux temps réel sont refusés.
+
+## 4.6 Mode démonstration
+
+Un hébergement statique comme Vercel ne peut pas faire tourner le backend. Pour que
+l'interface y reste utilisable, elle sait rejouer des **enregistrements de vrais runs**.
+
+**Ce qu'est un enregistrement.** Le journal d'événements complet d'un run exécuté par le
+backend (sandbox Docker, vrais tests), le contenu final de son workspace et le diff de sa
+merge request. Rien n'y est écrit à la main : `web/scripts/record-demo.mjs` lance les runs
+sur un backend en marche, répond aux portails, puis exporte le tout dans `web/public/demo/`.
+Le script refuse d'écrire un enregistrement contenant un chemin de la machine hôte.
+
+**Comment il est rejoué.** Les événements sont rendus un par un au même réducteur que le
+flux temps réel, en respectant les intervalles d'origine (plafonnés à 1,2 s). À chaque
+décision humaine enregistrée, le rejeu s'arrête : le portail attend réellement le clic du
+visiteur, puis la décision d'origine se déroule. L'en-tête propose la vitesse (1×, 2×, 4×)
+et le redémarrage.
+
+**Quand il s'active.**
+
+| Situation | Source des données |
+|---|---|
+| `NEXT_PUBLIC_DEMO_MODE=1` | Démonstration |
+| `NEXT_PUBLIC_API_URL` définie | Le backend indiqué |
+| Rien de défini, page servie depuis `localhost` | Le backend sur `http://localhost:8080` |
+| Rien de défini, page servie depuis un autre hôte | Démonstration |
+| Backend injoignable | Le visiteur peut choisir « Voir la démonstration enregistrée » |
+
+**Ce qu'il ne fait pas.** Un enregistrement ne se modifie pas : lancement d'un run,
+terminal, changement de supervision et annulation sont désactivés, et l'analyse d'une
+demande n'est disponible que pour les trois exemples. Un bandeau et un badge le signalent
+en permanence, pour qu'aucun visiteur ne prenne un rejeu pour une exécution en cours.
