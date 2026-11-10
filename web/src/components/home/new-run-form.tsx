@@ -12,6 +12,7 @@ import { Input, Label, Select, Textarea } from "@/components/ui/field";
 import { Panel, PanelHeader } from "@/components/ui/panel";
 import { Segmented } from "@/components/ui/segmented";
 import { api } from "@/lib/api";
+import { useDemoMode } from "@/lib/demo";
 import { PRESETS } from "@/lib/presets";
 import type { Meta, PlanPreview, SupervisionPolicy } from "@/lib/types";
 
@@ -38,6 +39,7 @@ export function NewRunForm({ meta }: { meta: Meta }) {
   const [busy, setBusy] = useState<"preview" | "launch" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const demo = useDemoMode();
   const simulated = meta.llm_backend === "simulated";
   const levelValue = level === "auto" ? null : Number(level);
   const isPdf = source === "file" && Boolean(file?.name.toLowerCase().endsWith(".pdf"));
@@ -132,7 +134,7 @@ export function NewRunForm({ meta }: { meta: Meta }) {
                 placeholder="Décrivez une user story, une epic, ou collez un cahier des charges en Markdown…"
                 className="font-mono text-[13px]"
               />
-              {simulated ? (
+              {simulated && !demo ? (
                 <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-faint">
                   <FlaskConical className="size-3.5" />
                   Backend simulé — directives de démonstration :
@@ -244,7 +246,13 @@ export function NewRunForm({ meta }: { meta: Meta }) {
           <Button variant="secondary" disabled={!ready || isPdf || busy !== null} onClick={() => void analyse()}>
             <ScanSearch /> {busy === "preview" ? "Analyse…" : "Analyser"}
           </Button>
-          <Button type="submit" variant="primary" size="lg" disabled={!ready || busy !== null}>
+          {demo ? (
+            <span className="mr-auto max-w-md text-xs text-faint">
+              Mode démonstration : le lancement demande un backend. « Analyser » fonctionne sur les trois exemples ;
+              les runs enregistrés sont dans la liste.
+            </span>
+          ) : null}
+          <Button type="submit" variant="primary" size="lg" disabled={demo || !ready || busy !== null}>
             <Play /> {busy === "launch" ? "Lancement…" : "Lancer le run"}
           </Button>
         </div>

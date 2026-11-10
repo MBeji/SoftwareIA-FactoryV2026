@@ -53,13 +53,16 @@ const STROKE: Record<TaskStatus, string> = {
 };
 
 const handle = "!size-1.5 !min-h-0 !min-w-0 !border-0 !bg-line-strong";
+const MAX_ROWS = 3;
+const COLUMN_WIDTH = 270;
+const ROW_HEIGHT = 142;
 
 function TaskCard({ data }: NodeProps<TaskNodeType>) {
   const { task, runtime, sprint, critical, current } = data;
   return (
     <div
       className={cn(
-        "w-[236px] rounded-lg border-2 bg-panel px-3 py-2",
+        "h-[126px] w-[236px] overflow-hidden rounded-lg border-2 bg-panel px-3 py-2",
         BORDER[runtime.status],
         current && "animate-token bg-raised",
         runtime.status === "pending" && "opacity-75",
@@ -78,14 +81,14 @@ function TaskCard({ data }: NodeProps<TaskNodeType>) {
         ) : null}
       </div>
       <p className="mt-1 line-clamp-2 min-h-9 text-[12px] leading-[18px] font-medium text-ink">{task.title}</p>
-      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+      <div className="mt-1.5 flex items-center gap-1 overflow-hidden">
         {sprint !== null ? <Badge tone="info">S{sprint}</Badge> : null}
         <RiskBadge score={task.risk.score} />
         <Badge>{task.estimate_points} pts</Badge>
         <Badge>{COMPONENT_LABEL[task.component] ?? task.component}</Badge>
       </div>
-      <p className="mt-1 min-h-3.5 font-mono text-[10px] text-faint">
-        {runtime.attempts > 0 ? `${runtime.attempts} tentative${runtime.attempts > 1 ? "s" : ""} GREEN` : ""}
+      <p className="mt-1 min-h-3.5 truncate font-mono text-[10px] text-faint">
+        {runtime.attempts > 0 ? `${runtime.attempts} tentative${runtime.attempts > 1 ? "s" : ""}` : ""}
         {runtime.confidence !== null ? ` · confiance ${formatPercent(runtime.confidence)}` : ""}
       </p>
     </div>
@@ -118,16 +121,23 @@ function Dag({ plan, tasks, tdd }: { plan: Plan; tasks: Record<string, TaskRunti
 
   const nodes = useMemo<TaskNodeType[]>(() => {
     const list: TaskNodeType[] = [];
-    plan.waves.forEach((wave, column) => {
-      wave.forEach((id, row) => {
+    // The panel is wide and short: a wave taller than MAX_ROWS wraps into sub-columns.
+    let column = 0;
+    plan.waves.forEach((wave) => {
+      wave.forEach((id, index) => {
         const task = plan.nodes.find((node) => node.id === id);
         if (!task) return;
+        const row = index % MAX_ROWS;
+        const inColumn = Math.min(MAX_ROWS, wave.length - Math.floor(index / MAX_ROWS) * MAX_ROWS);
         const runtime = tasks[id] ?? { status: "pending" as TaskStatus, attempts: 0, confidence: null };
         const working = runtime.status === "red" || runtime.status === "green" || runtime.status === "refactor";
         list.push({
           id,
           type: "task",
-          position: { x: column * 320, y: (row - (wave.length - 1) / 2) * 150 },
+          position: {
+            x: (column + Math.floor(index / MAX_ROWS)) * COLUMN_WIDTH,
+            y: (row - (inColumn - 1) / 2) * ROW_HEIGHT,
+          },
           data: {
             task,
             runtime,
@@ -138,6 +148,8 @@ function Dag({ plan, tasks, tdd }: { plan: Plan; tasks: Record<string, TaskRunti
           },
         });
       });
+      // Extra horizontal room between waves so dependency edges stay readable.
+      column += Math.ceil(wave.length / MAX_ROWS) + 0.25;
     });
     return list;
   }, [plan, tasks, tdd]);
@@ -188,7 +200,7 @@ function Dag({ plan, tasks, tdd }: { plan: Plan; tasks: Record<string, TaskRunti
         <Controls showInteractive={false} position="bottom-right" />
         <AutoFit container={container} signature={plan.execution_order.join(",")} />
       </ReactFlow>
-      <div className="pointer-events-none absolute top-2 left-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-line bg-panel/90 px-2 py-1 text-[10px] text-dim">
+      <div className="pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-5rem)] flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-line bg-panel/90 px-2 py-1 text-[10px] text-dim">
         <span>Colonnes = vagues parallélisables</span>
         <span className="flex items-center gap-1">
           <span className="h-0.5 w-4 bg-warn" /> chemin critique

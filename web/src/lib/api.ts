@@ -12,23 +12,13 @@ import type {
   SupervisionPolicy,
 } from "./types";
 
+import { ApiError } from "./api-error";
+import { demoApi, demoEnabled } from "./demo";
+
+export { ApiError };
+
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080").replace(/\/+$/, "");
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY ?? "";
-
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
-
-  /** The backend could not be reached at all (network error, CORS, server down). */
-  get unreachable(): boolean {
-    return this.status === 0;
-  }
-}
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
@@ -67,7 +57,8 @@ export interface NewRunInput {
   supervision: SupervisionPolicy;
 }
 
-export const api = {
+/** The backend, over HTTP. */
+const backend = {
   meta: () => request<Meta>("/api/meta"),
 
   listRuns: () => request<{ runs: RunSummary[] }>("/api/runs").then((r) => r.runs),
@@ -137,4 +128,27 @@ export const api = {
     const token = API_KEY ? `&token=${encodeURIComponent(API_KEY)}` : "";
     return `${base}/api/runs/${encodeURIComponent(id)}/stream?since=${since}${token}`;
   },
+};
+
+/**
+ * The data source of the dashboard: the backend, or recorded runs in demo mode
+ * (see `demo.ts`). The choice is made per call, in the browser.
+ */
+export const api: typeof backend = {
+  meta: () => (demoEnabled() ? demoApi.meta() : backend.meta()),
+  listRuns: () => (demoEnabled() ? demoApi.listRuns() : backend.listRuns()),
+  createRun: (run) => (demoEnabled() ? demoApi.createRun() : backend.createRun(run)),
+  uploadRun: (file, run) => (demoEnabled() ? demoApi.createRun() : backend.uploadRun(file, run)),
+  previewPlan: (input, level) => (demoEnabled() ? demoApi.previewPlan(input) : backend.previewPlan(input, level)),
+  getRun: (id) => (demoEnabled() ? demoApi.getRun(id) : backend.getRun(id)),
+  getEvents: (id, since) => (demoEnabled() ? demoApi.getEvents(id, since) : backend.getEvents(id, since)),
+  resolveGate: (id, gateId, decision, feedback, resolver) =>
+    demoEnabled() ? demoApi.resolveGate(id, gateId) : backend.resolveGate(id, gateId, decision, feedback, resolver),
+  setSupervision: (id, policy) => (demoEnabled() ? demoApi.readOnly() : backend.setSupervision(id, policy)),
+  cancel: (id) => (demoEnabled() ? demoApi.readOnly() : backend.cancel(id)),
+  terminal: (id, command) => (demoEnabled() ? demoApi.readOnly() : backend.terminal(id, command)),
+  tree: (id) => (demoEnabled() ? demoApi.tree(id) : backend.tree(id)),
+  file: (id, path) => (demoEnabled() ? demoApi.file(id, path) : backend.file(id, path)),
+  diff: (id) => (demoEnabled() ? demoApi.diff(id) : backend.diff(id)),
+  streamUrl: backend.streamUrl,
 };

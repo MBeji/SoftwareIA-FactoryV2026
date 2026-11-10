@@ -1,15 +1,17 @@
 "use client";
 
-import { Box, Cpu, Factory } from "lucide-react";
+import { Box, Clapperboard, Cpu, Factory } from "lucide-react";
 import Link from "next/link";
 
 import { MethodGuide } from "@/components/method-guide";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
+import { useDemoMode } from "@/lib/demo";
 import { useMeta } from "@/lib/use-meta";
 
 export function AppBar() {
   const { meta } = useMeta();
+  const demo = useDemoMode();
   return (
     <header className="sticky top-0 z-40 flex h-12 shrink-0 items-center justify-between gap-3 border-b border-line bg-panel/95 px-4 backdrop-blur">
       <Link href="/" className="flex items-center gap-2.5 rounded-md pr-2">
@@ -20,6 +22,13 @@ export function AppBar() {
         <span className="hidden text-xs text-faint md:inline">Software factory agentique</span>
       </Link>
       <div className="flex items-center gap-2">
+        {demo ? (
+          <Tooltip label="Aucun backend connecté : l'interface rejoue des enregistrements de vrais runs. Les badges voisins décrivent la factory qui les a produits.">
+            <Badge tone="violet" tabIndex={0}>
+              <Clapperboard /> Démonstration
+            </Badge>
+          </Tooltip>
+        ) : null}
         {meta ? (
           <>
             <Tooltip

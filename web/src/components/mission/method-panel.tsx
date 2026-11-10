@@ -326,15 +326,12 @@ function TreeView({ node, answers, onPath }: { node: TreeNode; answers: Record<A
   if (node.kind === "leaf") {
     const style = LEAF_STYLE[node.verdict];
     return (
-      <div
-        className={cn(
-          "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium [&_svg]:size-3.5",
-          onPath ? style.on : "border-line text-faint",
-        )}
-      >
-        {style.icon}
-        {VERDICT_LABEL[node.verdict]}
-        {node.note ? <span className="font-normal opacity-80">({node.note})</span> : null}
+      <div className={cn("inline-block rounded-md border px-2 py-1 text-[11px]", onPath ? style.on : "border-line text-faint")}>
+        <span className="flex items-center gap-1.5 font-medium [&_svg]:size-3.5">
+          {style.icon}
+          {VERDICT_LABEL[node.verdict]}
+        </span>
+        {node.note ? <span className="mt-0.5 block text-[10px] opacity-80">{node.note}</span> : null}
       </div>
     );
   }

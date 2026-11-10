@@ -6,10 +6,11 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 
 import { api, ApiError } from "./api";
+import { demoEnabled, subscribeReplay } from "./demo";
 import { isActive, reduceEvent, type ViewState } from "./reducer";
 import type { FactoryEvent } from "./types";
 
-export type Connection = "connecting" | "live" | "reconnecting" | "polling" | "offline";
+export type Connection = "connecting" | "live" | "reconnecting" | "polling" | "offline" | "replay";
 
 interface StreamState {
   view: ViewState | null;
@@ -68,6 +69,7 @@ export function useRunStream(runId: string): RunStream {
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
     let attempts = 0;
     let everOpened = false;
+    let stopReplay: (() => void) | null = null;
     const buffer: FactoryEvent[] = [];
 
     const flush = () => {
@@ -110,6 +112,22 @@ export function useRunStream(runId: string): RunStream {
 
     const connect = () => {
       if (disposed) return;
+      if (demoEnabled()) {
+        // Demo mode: a recorded run is replayed through the same pipeline as live events.
+        subscribeReplay(runId, lastSeq.current, push).then(
+          (unsubscribe) => {
+            if (disposed) unsubscribe();
+            else {
+              stopReplay = unsubscribe;
+              setConnection("replay");
+            }
+          },
+          () => {
+            if (!disposed) setConnection("offline");
+          },
+        );
+        return;
+      }
       try {
         socket = new WebSocket(api.streamUrl(runId, lastSeq.current));
       } catch {
@@ -179,6 +197,7 @@ export function useRunStream(runId: string): RunStream {
         socket.onclose = null;
         socket.close();
       }
+      if (stopReplay) stopReplay();
       if (reconnectTimer !== null) clearTimeout(reconnectTimer);
       if (flushTimer !== null) clearTimeout(flushTimer);
       if (snapshotTimer !== null) clearInterval(snapshotTimer);

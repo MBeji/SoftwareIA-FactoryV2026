@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/panel";
 import { api, ApiError } from "@/lib/api";
+import { useDemoMode } from "@/lib/demo";
 import { formatTime } from "@/lib/format";
 import type { TerminalEntry } from "@/lib/reducer";
 import type { Meta } from "@/lib/types";
@@ -71,6 +72,8 @@ export function TerminalPane({
   const [cursor, setCursor] = useState(-1);
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
+  const demo = useDemoMode();
+  const writable = active && !demo;
 
   // Stick to the bottom unless the operator scrolled up to read something.
   useEffect(() => {
@@ -132,14 +135,14 @@ export function TerminalPane({
         </p>
       ) : null}
       <form onSubmit={submit} className="flex shrink-0 items-center gap-2 border-t border-line bg-panel px-3 py-1.5">
-        <ChevronRight className={cn("size-4 shrink-0", active ? "text-ok" : "text-faint")} />
+        <ChevronRight className={cn("size-4 shrink-0", writable ? "text-ok" : "text-faint")} />
         <label htmlFor="terminal-input" className="sr-only">
           Commande à exécuter dans la sandbox
         </label>
         <input
           id="terminal-input"
           value={command}
-          disabled={!active || busy}
+          disabled={!writable || busy}
           autoComplete="off"
           spellCheck={false}
           onChange={(event) => setCommand(event.target.value)}
@@ -157,9 +160,11 @@ export function TerminalPane({
             }
           }}
           placeholder={
-            active
-              ? "Exécuter une commande dans la sandbox (ex. git log --oneline, ls, pytest -q)…"
-              : "Terminal en lecture seule : le run n'est plus actif"
+            demo
+              ? "Terminal en lecture seule : rejeu d'un run enregistré"
+              : active
+                ? "Exécuter une commande dans la sandbox (ex. git log --oneline, ls, pytest -q)…"
+                : "Terminal en lecture seule : le run n'est plus actif"
           }
           className="h-7 min-w-0 flex-1 bg-transparent font-mono text-xs text-ink placeholder:text-faint focus:outline-none disabled:opacity-60"
         />

@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
+import { ReplayControls } from "@/components/mission/replay-controls";
 import { StatusBadge } from "@/components/status";
 import { SupervisionSelector } from "@/components/supervision-selector";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,7 @@ import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, Dia
 import { Segmented } from "@/components/ui/segmented";
 import { Tooltip } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
+import { useDemoMode } from "@/lib/demo";
 import { MODE_LABEL, MODE_LONG, PHASES, formatCost, formatTokens } from "@/lib/format";
 import type { Connection } from "@/lib/use-run-stream";
 import type { Meta, Phase, RunState, RunStatus, SupervisionMode, SupervisionPolicy } from "@/lib/types";
@@ -36,6 +38,7 @@ const CONNECTION: Record<Connection, { label: string; tone: string; live: boolea
   reconnecting: { label: "Reconnexion…", tone: "text-warn", live: false },
   polling: { label: "Mode dégradé (interrogation HTTP)", tone: "text-warn", live: true },
   offline: { label: "Backend injoignable", tone: "text-bad", live: false },
+  replay: { label: "Rejeu d'un enregistrement", tone: "text-violet", live: true },
 };
 
 function PhaseStepper({ phase, status }: { phase: Phase; status: RunStatus }) {
@@ -106,7 +109,9 @@ export function RunHeader({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const active = status === "pending" || status === "running" || status === "waiting_approval";
+  const demo = useDemoMode();
+  // A recording cannot be steered: its supervision and its ending are already written.
+  const active = !demo && (status === "pending" || status === "running" || status === "waiting_approval");
   const simulated = run.llm_backend === "simulated";
   const link = CONNECTION[connection];
   const tokens = run.metrics.llm.prompt_tokens + run.metrics.llm.completion_tokens;
@@ -169,6 +174,7 @@ export function RunHeader({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {demo ? <ReplayControls runId={run.id} /> : null}
           <Tooltip label={`${MODE_LONG[run.supervision.default_mode].name} — ${MODE_LONG[run.supervision.default_mode].detail} Le changement s'applique au prochain point de contrôle.`}>
             <span>
               <Segmented<SupervisionMode>

@@ -8,6 +8,7 @@ import { ModeBadge, StatusBadge } from "@/components/status";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState, Panel, PanelHeader } from "@/components/ui/panel";
 import { api, API_URL } from "@/lib/api";
+import { demoApi, useDemoMode, type DemoRunEntry } from "@/lib/demo";
 import { PHASE_LABEL, formatCost, formatDateTime } from "@/lib/format";
 import type { RunSummary } from "@/lib/types";
 
@@ -16,6 +17,22 @@ const REFRESH_MS = 4000;
 export function RunsList({ simulated }: { simulated: boolean }) {
   const [runs, setRuns] = useState<RunSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const demo = useDemoMode();
+  const [recordings, setRecordings] = useState<Record<string, DemoRunEntry>>({});
+
+  useEffect(() => {
+    if (!demo) return;
+    let disposed = false;
+    demoApi.entries().then(
+      (entries) => {
+        if (!disposed) setRecordings(Object.fromEntries(entries.map((entry) => [entry.id, entry])));
+      },
+      () => {},
+    );
+    return () => {
+      disposed = true;
+    };
+  }, [demo]);
 
   useEffect(() => {
     let disposed = false;
@@ -42,7 +59,7 @@ export function RunsList({ simulated }: { simulated: boolean }) {
     <Panel className="flex min-h-64 flex-col">
       <PanelHeader
         icon={<History />}
-        title="Runs"
+        title={demo ? "Runs enregistrés" : "Runs"}
         actions={runs ? <span className="font-mono text-[11px] text-faint">{runs.length}</span> : null}
       />
       {error && !runs ? (
@@ -64,9 +81,14 @@ export function RunsList({ simulated }: { simulated: boolean }) {
               <li key={run.id}>
                 <Link href={`/runs/${run.id}`} className="block px-3 py-2.5 transition-colors hover:bg-hover">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="min-w-0 truncate text-sm font-medium text-ink">{run.title || run.id}</span>
+                    <span className="min-w-0 truncate text-sm font-medium text-ink">
+                      {recordings[run.id]?.label ?? (run.title || run.id)}
+                    </span>
                     <StatusBadge status={run.status} className="shrink-0" />
                   </div>
+                  {recordings[run.id] ? (
+                    <p className="mt-1 text-xs leading-relaxed text-dim">{recordings[run.id].description}</p>
+                  ) : null}
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-faint">
                     <ModeBadge mode={run.mode} />
                     {run.level ? <Badge>Niveau {run.level}</Badge> : null}

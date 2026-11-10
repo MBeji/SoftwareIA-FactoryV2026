@@ -250,7 +250,7 @@ export function GatePortal({
         </DialogBody>
 
         <DialogFooter>
-          <span className="mr-auto text-[11px] text-faint">Fermer ne décide rien : le run attend.</span>
+          <p className="w-full text-right text-[11px] text-faint">Fermer cette fenêtre ne décide rien : le run reste en attente.</p>
           {[...request.options].reverse().map((option) => {
             const style = DECISION[option.decision];
             const blocked = option.decision === "request_changes" && needsFeedback;

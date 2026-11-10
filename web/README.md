@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# OmniForge AI — Mission Control
 
-## Getting Started
+Interface de pilotage de la factory : graphe multi-agents en direct, volet pédagogique,
+terminal et diffs, portail de validation, sélecteur de supervision.
 
-First, run the development server:
+Next.js (App Router, TypeScript) · Tailwind CSS · composants de style shadcn/ui sur Radix ·
+React Flow. La conception est décrite dans [`docs/04-ihm.md`](../docs/04-ihm.md).
+
+## Développement
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev        # http://localhost:3000 — attend le backend sur http://localhost:8080
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+```bash
+npm run lint
+npm run build
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Configuration
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | voir ci-dessous | Adresse du backend, vue depuis le navigateur |
+| `NEXT_PUBLIC_API_KEY` | — | Clé envoyée au backend si celui-ci en exige une |
+| `NEXT_PUBLIC_DEMO_MODE` | — | `1` force le mode démonstration |
 
-## Learn More
+Ces valeurs sont intégrées au bundle à la construction : les modifier demande un nouveau build.
 
-To learn more about Next.js, take a look at the following resources:
+Sans `NEXT_PUBLIC_API_URL`, l'interface interroge `http://localhost:8080` lorsqu'elle est
+servie depuis `localhost`, et passe en **mode démonstration** partout ailleurs.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Mode démonstration
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Sans backend, l'interface rejoue des **enregistrements de vrais runs** (`public/demo/`) à
+travers le même réducteur que le flux temps réel. Les portails de validation attendent un
+clic, puis la décision enregistrée se déroule. Lancer un run, exécuter une commande ou
+changer la supervision demande un backend.
 
-## Deploy on Vercel
+Les enregistrements se régénèrent à partir d'un backend en marche :
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+node scripts/record-demo.mjs --api http://127.0.0.1:8080
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Déploiement
+
+- **Vercel** : importer le dépôt, régler *Root Directory* sur `web`, déployer. Sans variable
+  d'environnement, le site fonctionne en mode démonstration. Détails dans
+  [`docs/05-deploiement.md`](../docs/05-deploiement.md).
+- **Docker** : `docker build -t omniforge-web --build-arg NEXT_PUBLIC_API_URL=… .`

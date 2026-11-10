@@ -158,12 +158,12 @@ function HumanNode({ data }: NodeProps<HumanNodeType>) {
   return (
     <div
       style={{ "--token-color": "var(--color-warn)" } as CSSProperties}
-      className={cn("w-[230px] rounded-lg border bg-panel px-3 py-2", waiting ? "animate-token border-warn bg-raised" : "border-line")}
+      className={cn("w-[250px] rounded-lg border bg-panel px-3 py-2", waiting ? "animate-token border-warn bg-raised" : "border-line")}
     >
       <Handle type="source" position={Position.Bottom} id="hub" className={hidden} />
       <div className="flex items-center gap-2">
         <UserRound className={cn("size-4", waiting ? "text-warn" : "text-dim")} />
-        <span className="flex-1 text-[13px] font-semibold text-ink">Superviseur humain</span>
+        <span className="flex-1 text-sm font-semibold whitespace-nowrap text-ink">Superviseur humain</span>
         <ModeBadge mode={data.mode} />
       </div>
       <p className={cn("mt-1 line-clamp-2 min-h-8 text-[11px] leading-4", waiting ? "text-warn" : "text-faint")}>
@@ -185,7 +185,7 @@ function SandboxNode({ data }: NodeProps<SandboxNodeType>) {
       <Handle type="target" position={Position.Right} id="right" className={hidden} />
       <div className="flex items-center gap-2">
         <Box className={cn("size-4", data.busy ? "text-ok" : "text-dim")} />
-        <span className="flex-1 text-[13px] font-semibold text-ink">Sandbox</span>
+        <span className="flex-1 text-sm font-semibold text-ink">Sandbox</span>
         <Badge tone={data.kind === "docker" ? "ok" : "warn"}>{data.kind}</Badge>
       </div>
       <p className="mt-1 truncate font-mono text-[11px] text-dim">{data.lastCommand ? `$ ${data.lastCommand}` : "en attente de commandes"}</p>
@@ -229,7 +229,7 @@ function Graph({ view, status, meta }: { view: ViewState; status: RunStatus; met
       {
         id: "human",
         type: "human",
-        position: { x: -115, y: -225 },
+        position: { x: -125, y: -225 },
         data: {
           mode: lastEvaluation && waiting ? lastEvaluation.mode : run.supervision.default_mode,
           pending: waiting && pendingGate ? pendingGate.request.title : null,
