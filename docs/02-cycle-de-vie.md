@@ -200,7 +200,7 @@ mode de l'étape (surcharge par étape, sinon mode par défaut)
 Trois décisions sont possibles à un portail : **approuver**, **demander des modifications**
 (le commentaire est transmis à l'agent, qui refait l'étape ; `max_revisions` tours au plus)
 ou **rejeter** (le run passe à `cancelled`). Un portail peut expirer (`gate_timeout_s`) : il
-est alors rejeté, jamais approuvé par défaut.
+n'est jamais approuvé par défaut, et le run se termine en échec (`failed`).
 
 La politique se règle par projet, par run, et **en cours de run** : la modification
 s'applique dès le point de contrôle suivant. Exemple vérifié par les tests : un run
