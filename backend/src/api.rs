@@ -28,6 +28,18 @@ use crate::orchestrator::{Orchestrator, RunRequest};
 pub struct AppState {
     pub orchestrator: Arc<Orchestrator>,
     pub api_key: Option<String>,
+    /// Browser origins allowed to call the API (filled by [`router`]).
+    allowed_origins: Arc<Vec<String>>,
+}
+
+impl AppState {
+    pub fn new(orchestrator: Arc<Orchestrator>, api_key: Option<String>) -> Self {
+        Self {
+            orchestrator,
+            api_key: api_key.filter(|key| !key.is_empty()),
+            allowed_origins: Arc::new(Vec::new()),
+        }
+    }
 }
 
 pub struct ApiError(Error);
@@ -58,6 +70,10 @@ type ApiResult<T> = Result<Json<T>, ApiError>;
 
 /// Builds the application router. `cors_origins` empty = same-origin only; `*` = any.
 pub fn router(state: AppState, cors_origins: &[String]) -> Router {
+    let state = AppState {
+        allowed_origins: Arc::new(cors_origins.to_vec()),
+        ..state
+    };
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::OPTIONS])
         .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
@@ -102,6 +118,26 @@ pub fn router(state: AppState, cors_origins: &[String]) -> Router {
 /// `?token=`, because browsers cannot set headers on an upgrade request; it is the only
 /// route where a key may travel in the URL.
 async fn authenticate(State(state): State<AppState>, request: Request, next: Next) -> Response {
+    // Browsers attach `Origin` to cross-site writes and to WebSocket handshakes, and CORS
+    // protects neither "simple" form posts (the multipart upload) nor WebSockets. Refuse
+    // both when they come from a page outside the allow-list: a random website must not
+    // be able to start runs or read the event stream of a locally running factory.
+    let is_write = ![Method::GET, Method::HEAD, Method::OPTIONS].contains(request.method());
+    let is_stream = request.uri().path().ends_with("/stream");
+    if is_write || is_stream {
+        let origin = request
+            .headers()
+            .get(header::ORIGIN)
+            .and_then(|v| v.to_str().ok());
+        let allowed = |o: &str| state.allowed_origins.iter().any(|a| a == "*" || a == o);
+        if origin.is_some_and(|o| !allowed(o)) {
+            return (
+                StatusCode::FORBIDDEN,
+                Json(json!({ "error": "origin not allowed" })),
+            )
+                .into_response();
+        }
+    }
     let Some(expected) = state.api_key.as_deref() else {
         return next.run(request).await;
     };

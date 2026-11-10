@@ -34,6 +34,8 @@ use crate::llm::{CallMeta, LlmRequest, TaskKind};
 use crate::orchestrator::state::RunStatus;
 
 const BASE_BRANCH: &str = "main";
+/// The merge request carries its diff (event log, gate, UI): keep it bounded.
+const MAX_DIFF_CHARS: usize = 200_000;
 const GITIGNORE: &str =
     "__pycache__/\n*.pyc\n.pytest_cache/\n.ruff_cache/\n.venv/\nnode_modules/\ndist/\n.env\n";
 
@@ -737,7 +739,8 @@ async fn delivery_stage(
             "base": BASE_BRANCH,
             "commits": commits.lines().collect::<Vec<_>>(),
             "diff_stat": stat,
-            "diff": diff.chars().take(400_000).collect::<String>(),
+            "diff": diff.chars().take(MAX_DIFF_CHARS).collect::<String>(),
+            "diff_truncated": diff.chars().count() > MAX_DIFF_CHARS,
             "confidence": confidence,
         });
 

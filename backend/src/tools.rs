@@ -360,7 +360,7 @@ async fn run(name: &str, args: &Value, ctx: &ToolContext) -> Result<ToolOutput, 
         "read_file" => {
             let path = arg(args, "path")?;
             ws.read(path)
-                .map(ToolOutput::ok)
+                .map(|content| ToolOutput::ok(clip_file(content)))
                 .map_err(|e| ToolOutput::err(e.to_string()))
         }
         "write_file" => {
@@ -450,18 +450,14 @@ async fn run(name: &str, args: &Value, ctx: &ToolContext) -> Result<ToolOutput, 
             })
         }
         "git" => {
-            let raw = arg(args, "args")?;
-            let sub = raw.split_whitespace().next().unwrap_or("");
-            if !["status", "diff", "log", "show"].contains(&sub)
-                || raw.contains([';', '|', '&', '`', '$', '>', '<'])
-            {
-                return Err(ToolOutput::err(
-                    "only read-only git commands are available: status, diff, log, show",
-                ));
-            }
+            let words = safe_git_args(arg(args, "args")?).map_err(ToolOutput::err)?;
+            let quoted: Vec<String> = words.iter().map(|w| shell_quote(w)).collect();
             let res = ctx
                 .sandbox
-                .exec(&format!("git --no-pager {raw}"), ctx.exec_timeout)
+                .exec(
+                    &format!("git --no-pager {}", quoted.join(" ")),
+                    ctx.exec_timeout,
+                )
                 .await
                 .map_err(|e| ToolOutput::err(e.to_string()))?;
             Ok(ToolOutput {
@@ -479,6 +475,45 @@ async fn run(name: &str, args: &Value, ctx: &ToolContext) -> Result<ToolOutput, 
         }
         other => Err(ToolOutput::err(format!("unknown tool `{other}`"))),
     }
+}
+
+/// Validates the arguments of the read-only `git` tool.
+///
+/// This tool is given to roles that have neither a shell nor write access (auditor,
+/// reviewer), so it must not become one: every argument reaches git as a single quoted
+/// word — nothing is interpreted by the shell — and the options that write files or run
+/// external programs are refused.
+fn safe_git_args(raw: &str) -> Result<Vec<String>, String> {
+    const HELP: &str = "only read-only git commands are available: status, diff, log, show";
+    const FORBIDDEN: [&str; 4] = ["--output", "--ext-diff", "--textconv", "--no-index"];
+    let words: Vec<String> = raw.split_whitespace().map(str::to_string).collect();
+    match words.first() {
+        Some(sub) if ["status", "diff", "log", "show"].contains(&sub.as_str()) => {}
+        _ => return Err(HELP.to_string()),
+    }
+    for word in &words[1..] {
+        let plain = word
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "_./:=@^~,%+-".contains(c));
+        let forbidden = FORBIDDEN
+            .iter()
+            .any(|opt| word == opt || word.starts_with(&format!("{opt}=")));
+        if !plain || forbidden {
+            return Err(format!("argument `{word}` is not allowed; {HELP}"));
+        }
+    }
+    Ok(words)
+}
+
+/// Bounds what a single file read puts into a model's context.
+fn clip_file(content: String) -> String {
+    const MAX_CHARS: usize = 100_000;
+    let total = content.chars().count();
+    if total <= MAX_CHARS {
+        return content;
+    }
+    let head: String = content.chars().take(MAX_CHARS).collect();
+    format!("{head}\n… [file truncated: {total} characters in total; use code_search to locate the rest]")
 }
 
 fn write_guarded(ctx: &ToolContext, path: &str, content: &str) -> Result<ToolOutput, ToolOutput> {
@@ -667,6 +702,64 @@ mod tests {
         );
         assert!(
             !execute("git", &json!({"args": "status; rm -rf ."}), &ctx)
+                .await
+                .ok
+        );
+    }
+
+    /// The git tool is held by roles that have neither a shell nor write access:
+    /// it must not turn into one.
+    #[tokio::test]
+    async fn the_read_only_git_tool_cannot_reach_the_shell_or_write_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let (ctx, _) = context(&dir, WriteScope::None, &["git"]);
+        let ws = ctx.sandbox.workspace();
+        ctx.sandbox
+            .exec("git init -q -b main .", ctx.exec_timeout)
+            .await
+            .unwrap();
+        ws.write("keep.txt", "precious\n").unwrap();
+        for injection in [
+            "status\nrm -f keep.txt",
+            "log $(rm -f keep.txt)",
+            "log `rm -f keep.txt`",
+            "status && rm -f keep.txt",
+            "diff --output=pwned.txt",
+            "show --ext-diff",
+            "diff --no-index /etc/passwd /dev/null",
+        ] {
+            execute("git", &json!({ "args": injection }), &ctx).await;
+            assert!(ws.exists("keep.txt"), "injection succeeded: {injection:?}");
+            assert!(
+                !ws.exists("pwned.txt"),
+                "file written through git: {injection:?}"
+            );
+        }
+        let status = execute("git", &json!({"args": "status --short"}), &ctx).await;
+        assert!(
+            status.ok && status.text.contains("keep.txt"),
+            "{}",
+            status.text
+        );
+        assert!(safe_git_args("log --oneline -5 main..HEAD").is_ok());
+        assert!(safe_git_args("diff --output=x").is_err());
+        assert!(safe_git_args("push origin main").is_err());
+        assert!(safe_git_args("").is_err());
+    }
+
+    #[tokio::test]
+    async fn file_reads_are_bounded() {
+        let dir = tempfile::tempdir().unwrap();
+        let (ctx, _) = context(&dir, WriteScope::Source, &["read_file"]);
+        let ws = ctx.sandbox.workspace();
+        ws.write("big.txt", &"x".repeat(150_000)).unwrap();
+        let out = execute("read_file", &json!({"path": "big.txt"}), &ctx).await;
+        assert!(out.ok && out.text.contains("file truncated: 150000 characters"));
+        assert!(out.text.len() < 101_000);
+        // Beyond the hard limit the workspace refuses to load the file at all.
+        std::fs::write(ws.root().join("huge.bin"), vec![0u8; 3 * 1024 * 1024]).unwrap();
+        assert!(
+            !execute("read_file", &json!({"path": "huge.bin"}), &ctx)
                 .await
                 .ok
         );

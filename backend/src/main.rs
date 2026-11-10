@@ -53,7 +53,7 @@ enum Command {
             long,
             env = "OMNIFORGE_CORS_ORIGINS",
             value_delimiter = ',',
-            default_value = "http://localhost:3000"
+            default_value = "http://localhost:3000,http://127.0.0.1:3000"
         )]
         cors_origins: Vec<String>,
     },
@@ -398,13 +398,7 @@ async fn serve(
     if meta["sandbox"] == "local" {
         tracing::warn!("sandbox=local: agent commands run on this host WITHOUT isolation — demos and tests only");
     }
-    let app = api::router(
-        AppState {
-            orchestrator,
-            api_key,
-        },
-        &cors_origins,
-    );
+    let app = api::router(AppState::new(orchestrator, api_key), &cors_origins);
     let listener = tokio::net::TcpListener::bind(&bind).await?;
     tracing::info!(
         "OmniForge API listening on http://{bind} (llm: {}, sandbox: {})",

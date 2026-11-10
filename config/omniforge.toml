@@ -100,3 +100,4 @@ sprint_capacity_points = 13
 max_steps = 16
 escalate_after_failures = 2
 max_security_fix_rounds = 2
+max_concurrent_runs = 4

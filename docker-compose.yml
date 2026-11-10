@@ -28,7 +28,7 @@ services:
       OMNIFORGE_LLM_BASE_URL: http://litellm:4000/v1
       OMNIFORGE_LLM_API_KEY: ${LITELLM_MASTER_KEY:-}
       OMNIFORGE_API_KEY: ${OMNIFORGE_API_KEY:-}
-      OMNIFORGE_CORS_ORIGINS: ${OMNIFORGE_CORS_ORIGINS:-http://localhost:3000}
+      OMNIFORGE_CORS_ORIGINS: ${OMNIFORGE_CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       OMNIFORGE_SIM_DELAY_MS: ${OMNIFORGE_SIM_DELAY_MS:-400}
     # L'API pilote le démon Docker de l'hôte pour créer les sandboxes : elle doit appartenir
     # au groupe propriétaire du socket (DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)).
@@ -65,7 +65,9 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OLLAMA_API_BASE: ${OLLAMA_API_BASE:-http://ollama:11434}
-      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?définissez LITELLM_MASTER_KEY dans .env}
+      # À définir dans .env. Le proxy n'est joignable que depuis le réseau interne de la
+      # pile (aucun port publié), mais une clé reste indispensable dès qu'on l'expose.
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-}
     volumes:
       - ./config/litellm.config.yaml:/app/config.yaml:ro
     restart: unless-stopped

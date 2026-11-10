@@ -58,7 +58,7 @@ réglable. Ce document décrit les composants, leurs frontières et les choix st
 
 | Composant | Rôle | Implémentation du MVP | Cible à l'échelle |
 |---|---|---|---|
-| **API Gateway** | Point d'entrée unique : commandes REST, flux temps réel, authentification | `axum` ; clé d'API statique comparée en temps constant, liste blanche CORS, upload multipart borné à 25 Mo | Passerelle d'entreprise devant le service (TLS, SSO/OIDC, quotas, WAF) ; le service garde sa clé comme défense en profondeur |
+| **API Gateway** | Point d'entrée unique : commandes REST, flux temps réel, authentification | `axum` ; clé d'API statique comparée en temps constant, liste blanche d'origines (CORS, écritures, WebSocket), upload multipart borné à 25 Mo | Passerelle d'entreprise devant le service (TLS, SSO/OIDC, quotas, WAF) ; le service garde sa clé comme défense en profondeur |
 | **Orchestration Engine** | Machine à états du SDLC, cycle de vie des runs, détention des verdicts | Tâche `tokio` par run, pipeline explicite (`pipeline.rs`), boucle TDD (`tdd.rs`) | Workers distribués consommant une file ; reprise d'un run à partir de son journal |
 | **GateKeeper** | Applique la matrice de supervision à chaque point de contrôle | Fonction pure `evaluate` + attente sur canal `oneshot` (`governance/mod.rs`) | Notifications (chat, e-mail), délégations, quorum |
 | **Agent Runtime** | Exécute n'importe quel rôle dans la boucle Observe-Think-Act | `agents.rs` : rôles = données, un seul moteur | Idem ; ajout de rôles par configuration |
@@ -151,7 +151,9 @@ l'événement est marqué `cost_estimated`.
 | Commandes dangereuses | Garde-fou appliqué avant exécution, aux agents comme à l'humain du terminal (`rm -rf /`, `curl … \| sh`, `sudo`, `git push`, `docker`…) ; violation tracée et remontée en exception |
 | Agent qui « triche » sur les tests | Tests verrouillés après RED, refus d'écriture, restauration systématique et violation tracée s'ils ont été modifiés par le shell |
 | Fuite de secrets | Environnement vidé pour les commandes des agents ; clés fournisseurs détenues par le seul proxy ; scanner de secrets sur le code produit |
-| Git piégé | Git ne s'exécute jamais côté hôte sur un dépôt contrôlé par un agent : uniquement dans la sandbox |
+| Git piégé | Git ne s'exécute jamais côté hôte sur un dépôt contrôlé par un agent : uniquement dans la sandbox. L'outil `git` des rôles en lecture seule passe chaque argument tel quel, sans interprétation par le shell, et refuse les options qui écrivent des fichiers |
+| Page web malveillante visant une factory locale | Les écritures et les connexions WebSocket portant une origine hors liste blanche sont refusées — CORS seul ne protège ni l'upload multipart ni les WebSockets |
+| Saturation | Nombre de runs simultanés plafonné (4 par défaut), lectures de fichiers et diffs bornés |
 | Dérive de coût | Budget par run, rétrogradation automatique, portail budgétaire |
 
 **Limite assumée du déploiement Docker.** L'API pilote le démon Docker de l'hôte par son

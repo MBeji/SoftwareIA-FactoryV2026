@@ -17,10 +17,7 @@ struct Server {
 async fn serve(api_key: Option<&str>) -> Server {
     let factory = factory();
     let app = router(
-        AppState {
-            orchestrator: factory.orchestrator.clone(),
-            api_key: api_key.map(str::to_string),
-        },
+        AppState::new(factory.orchestrator.clone(), api_key.map(str::to_string)),
         &["http://localhost:3000".to_string()],
     );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -451,4 +448,104 @@ async fn the_api_key_protects_everything_but_the_health_probe() {
     assert_eq!(meta["roles"].as_array().unwrap().len(), 7);
     assert_eq!(meta["llm_backend"], "simulated");
     assert_eq!(meta["routing"]["routes"]["test_generation"], "critic");
+}
+
+#[tokio::test]
+async fn cross_site_pages_cannot_drive_the_api() {
+    let s = serve(None).await;
+    let post = |origin: Option<&'static str>| {
+        let mut request = s
+            .http
+            .post(format!("{}/api/runs", s.base))
+            .json(&json!({ "input": JWT_TASK, "supervision": { "default_mode": "hitl" } }));
+        if let Some(origin) = origin {
+            request = request.header("origin", origin);
+        }
+        request.send()
+    };
+    // A page on another site: refused, and nothing is started.
+    assert_eq!(
+        post(Some("https://evil.example"))
+            .await
+            .unwrap()
+            .status()
+            .as_u16(),
+        403
+    );
+    // The multipart upload is a "simple" request that CORS does not preflight.
+    let form = reqwest::multipart::Form::new().part(
+        "file",
+        reqwest::multipart::Part::bytes(PRD.as_bytes().to_vec()).file_name("prd.md"),
+    );
+    let upload = s
+        .http
+        .post(format!("{}/api/runs/upload", s.base))
+        .header("origin", "https://evil.example")
+        .multipart(form)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(upload.status().as_u16(), 403);
+    assert_eq!(s.get("/api/runs").await.1["runs"], json!([]));
+
+    // The dashboard's own origin, and non-browser clients (no Origin header), are served.
+    let allowed = post(Some("http://localhost:3000")).await.unwrap();
+    assert_eq!(allowed.status().as_u16(), 201);
+    let run: Value = allowed.json().await.unwrap();
+    let id = run["id"].as_str().unwrap();
+    assert_eq!(post(None).await.unwrap().status().as_u16(), 201);
+
+    // WebSocket handshakes are not covered by CORS either: a foreign page must not be
+    // able to read a run's event stream.
+    let stream = |origin: &'static str| {
+        s.http
+            .get(format!("{}/api/runs/{id}/stream", s.base))
+            .header("origin", origin)
+            .send()
+    };
+    assert_eq!(
+        stream("https://evil.example")
+            .await
+            .unwrap()
+            .status()
+            .as_u16(),
+        403
+    );
+    assert_ne!(
+        stream("http://localhost:3000")
+            .await
+            .unwrap()
+            .status()
+            .as_u16(),
+        403
+    );
+}
+
+#[tokio::test]
+async fn concurrent_runs_are_capped() {
+    let s = serve(None).await;
+    let start = || {
+        s.post(
+            "/api/runs",
+            json!({ "input": JWT_TASK, "supervision": { "default_mode": "hitl" } }),
+        )
+    };
+    let mut ids = Vec::new();
+    for _ in 0..4 {
+        let (status, run) = start().await;
+        assert_eq!(status, 201);
+        ids.push(run["id"].as_str().unwrap().to_string());
+    }
+    // Each HITL run is parked on its first gate and holds a sandbox: the fifth is refused.
+    let (status, body) = start().await;
+    assert_eq!(status, 409, "{body}");
+    assert!(body["error"].as_str().unwrap().contains("limit 4"));
+    // Freeing a slot makes room again.
+    assert_eq!(
+        s.post(&format!("/api/runs/{}/cancel", ids[0]), json!({}))
+            .await
+            .0,
+        200
+    );
+    assert_eq!(start().await.0, 201);
 }

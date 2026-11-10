@@ -480,6 +480,13 @@ impl Orchestrator {
             .clone()
             .unwrap_or_else(|| self.cfg.supervision.clone());
         policy.validate()?;
+        let active = self.runs.lock().expect("runs poisoned").len();
+        if active >= self.cfg.agents.max_concurrent_runs as usize {
+            return Err(Error::Conflict(format!(
+                "{active} runs are already active (limit {}); retry when one finishes",
+                self.cfg.agents.max_concurrent_runs
+            )));
+        }
 
         let run_id = format!("run-{}", &uuid::Uuid::new_v4().simple().to_string()[..8]);
         let sandbox = sandbox::create(
@@ -659,6 +666,11 @@ impl Orchestrator {
     /// Stops an active run.
     pub async fn cancel(&self, run_id: &str, by: &str) -> Result<()> {
         let handle = self.live_handle(run_id)?;
+        if !self.state(run_id)?.status.is_active() {
+            return Err(Error::Conflict(format!(
+                "run '{run_id}' has already finished"
+            )));
+        }
         if let Some(task) = handle.task.lock().expect("run task poisoned").take() {
             task.abort();
         }

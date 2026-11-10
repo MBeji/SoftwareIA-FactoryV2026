@@ -379,14 +379,24 @@ impl Plan {
                 } else {
                     format!("  ← {}", node.depends_on.join(", "))
                 };
+                // Estimates and risk only make sense on executable (leaf) tasks.
+                let is_leaf = !plan
+                    .nodes
+                    .iter()
+                    .any(|n| n.parent.as_deref() == Some(&node.id));
+                let sizing = if is_leaf && node.kind != NodeKind::Goal {
+                    format!(
+                        " ({} pts, risque {})",
+                        node.estimate_points, node.risk.score
+                    )
+                } else {
+                    String::new()
+                };
                 out.push_str(&format!(
-                    "{}- [{}] {} ({} pts, risque {}){}\n",
+                    "{}- [{}] {}{sizing}{deps}\n",
                     "  ".repeat(depth),
                     node.id,
                     node.title,
-                    node.estimate_points,
-                    node.risk.score,
-                    deps
                 ));
                 walk(plan, Some(&node.id), depth + 1, out);
             }

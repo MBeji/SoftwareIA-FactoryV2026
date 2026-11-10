@@ -28,6 +28,9 @@ use crate::error::{Error, Result};
 /// Maximum characters of command output kept (head + tail) for events and LLM context.
 pub const MAX_OUTPUT_CHARS: usize = 16_000;
 
+/// Largest file the workspace API will load in memory.
+pub const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecResult {
     pub command: String,
@@ -252,6 +255,12 @@ impl Workspace {
         let path = self.resolve(rel)?;
         if !path.is_file() {
             return Err(Error::NotFound(format!("file '{rel}'")));
+        }
+        let size = path.metadata()?.len();
+        if size > MAX_FILE_BYTES {
+            return Err(Error::Invalid(format!(
+                "file '{rel}' is too large to read ({size} bytes, limit {MAX_FILE_BYTES})"
+            )));
         }
         Ok(String::from_utf8_lossy(&std::fs::read(path)?).into_owned())
     }

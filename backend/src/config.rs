@@ -145,6 +145,8 @@ pub struct AgentsConfig {
     pub escalate_after_failures: u32,
     /// Automatic fix rounds for blocking security findings before raising an exception.
     pub max_security_fix_rounds: u32,
+    /// Runs allowed to execute at the same time (each one holds a sandbox).
+    pub max_concurrent_runs: u32,
 }
 
 impl Default for AgentsConfig {
@@ -153,6 +155,7 @@ impl Default for AgentsConfig {
             max_steps: 16,
             escalate_after_failures: 2,
             max_security_fix_rounds: 2,
+            max_concurrent_runs: 4,
         }
     }
 }
