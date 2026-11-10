@@ -638,8 +638,12 @@ impl Orchestrator {
         &self,
         run_id: &str,
         gate_id: &str,
-        resolution: GateResolution,
+        mut resolution: GateResolution,
     ) -> Result<()> {
+        // `timeout` and `system` are reserved for decisions the factory takes itself.
+        if matches!(resolution.resolver.as_str(), "timeout" | "system") {
+            resolution.resolver = "user".into();
+        }
         self.live_handle(run_id)?.gate.resolve(gate_id, resolution)
     }
 

@@ -463,19 +463,19 @@ impl GateKeeper {
                     json!({ "status": "running" }),
                 );
 
+                // An expired or abandoned gate is the factory giving up, not a human "no":
+                // the run ends as failed, not as cancelled by its supervisor.
+                let by_human = !matches!(resolution.resolver.as_str(), "timeout" | "system");
                 let feedback = resolution.feedback.filter(|f| !f.trim().is_empty());
                 match resolution.decision {
-                    GateDecision::Approve => GateOutcome::Approved {
-                        feedback,
-                        by_human: true,
-                    },
+                    GateDecision::Approve => GateOutcome::Approved { feedback, by_human },
                     GateDecision::RequestChanges => GateOutcome::ChangesRequested {
                         feedback: feedback
                             .unwrap_or_else(|| "modifications demandées (sans précision)".into()),
                     },
                     GateDecision::Reject => GateOutcome::Rejected {
                         reason: feedback.unwrap_or_else(|| "rejeté par le superviseur".into()),
-                        by_human: true,
+                        by_human,
                     },
                 }
             }
@@ -591,6 +591,136 @@ mod tests {
             evaluate(&p, Stage::Plan, 0.99, &[]).verdict,
             Verdict::AutoApproved
         );
+    }
+
+    fn keeper(policy: SupervisionPolicy) -> (Arc<GateKeeper>, Arc<crate::events::EventStore>) {
+        let store = crate::events::EventStore::open(None).unwrap();
+        let emitter = Emitter::new(store.clone(), "r1");
+        (
+            Arc::new(GateKeeper::new(emitter, Arc::new(RwLock::new(policy)))),
+            store,
+        )
+    }
+
+    fn checkpoint(stage: Stage, confidence: f64) -> Checkpoint {
+        Checkpoint {
+            stage,
+            task_id: None,
+            title: "Validation".into(),
+            summary: "résumé".into(),
+            proposal: json!({ "kind": "plan" }),
+            confidence,
+            exceptions: vec![],
+            options: GateOption::defaults(),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_gate_parks_the_run_until_a_human_decides() {
+        let (gate, store) = keeper(policy(SupervisionMode::Hitl));
+        let waiting = tokio::spawn({
+            let gate = gate.clone();
+            async move { gate.checkpoint(checkpoint(Stage::Plan, 0.9)).await }
+        });
+        let gate_id = loop {
+            if let Some(id) = gate.pending_gate_ids().first() {
+                break id.clone();
+            }
+            tokio::task::yield_now().await;
+        };
+        assert!(!waiting.is_finished(), "the run must wait for the decision");
+        assert!(gate
+            .resolve(
+                "gate-unknown",
+                GateResolution {
+                    decision: GateDecision::Approve,
+                    feedback: None,
+                    resolver: "x".into()
+                }
+            )
+            .is_err());
+        gate.resolve(
+            &gate_id,
+            GateResolution {
+                decision: GateDecision::RequestChanges,
+                feedback: Some("plus petit".into()),
+                resolver: "alice".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            waiting.await.unwrap(),
+            GateOutcome::ChangesRequested {
+                feedback: "plus petit".into()
+            }
+        );
+        // A gate can only be decided once.
+        assert!(gate
+            .resolve(
+                &gate_id,
+                GateResolution {
+                    decision: GateDecision::Approve,
+                    feedback: None,
+                    resolver: "bob".into()
+                }
+            )
+            .is_err());
+
+        let kinds: Vec<EventType> = store.events("r1", 0).iter().map(|e| e.kind).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                EventType::GateEvaluated,
+                EventType::GateRequested,
+                EventType::RunStatusChanged,
+                EventType::GateResolved,
+                EventType::RunStatusChanged,
+            ]
+        );
+        assert_eq!(store.events("r1", 0)[3].payload["resolver"], "alice");
+    }
+
+    #[tokio::test]
+    async fn an_unanswered_gate_expires_as_a_rejection_never_as_an_approval() {
+        let mut p = policy(SupervisionMode::Hitl);
+        p.gate_timeout_s = Some(1);
+        let (gate, _) = keeper(p);
+        let outcome = gate.checkpoint(checkpoint(Stage::Merge, 0.99)).await;
+        // …and it is reported as the factory stopping, not as a human rejection.
+        assert!(
+            matches!(&outcome, GateOutcome::Rejected { by_human: false, reason } if reason.contains("aucune décision humaine")),
+            "{outcome:?}"
+        );
+        assert!(gate.pending_gate_ids().is_empty());
+    }
+
+    #[tokio::test]
+    async fn autonomous_checkpoints_never_create_a_gate() {
+        let (gate, store) = keeper(policy(SupervisionMode::Autonomous));
+        let approved = gate.checkpoint(checkpoint(Stage::Plan, 0.2)).await;
+        assert_eq!(
+            approved,
+            GateOutcome::Approved {
+                feedback: None,
+                by_human: false
+            }
+        );
+        let mut blocked = checkpoint(Stage::Implementation, 0.9);
+        blocked.exceptions.push(ExceptionSignal::new(
+            ExceptionKind::TddDivergence,
+            "4 itérations",
+        ));
+        assert!(matches!(
+            gate.checkpoint(blocked).await,
+            GateOutcome::Rejected {
+                by_human: false,
+                ..
+            }
+        ));
+        assert!(store
+            .events("r1", 0)
+            .iter()
+            .all(|e| e.kind == EventType::GateEvaluated));
     }
 
     #[test]
