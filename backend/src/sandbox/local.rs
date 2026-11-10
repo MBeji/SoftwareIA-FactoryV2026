@@ -60,7 +60,8 @@ impl Sandbox for LocalSandbox {
         )
         .env("HOME", &self.home)
         .env("LANG", "C.UTF-8")
-        .env("PYTHONPATH", &root)
+        // No PYTHONPATH or similar crutch: the tests must pass on the project as it is
+        // delivered, the way they would for anyone who clones it.
         .env("PYTHONDONTWRITEBYTECODE", "1")
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_TERMINAL_PROMPT", "0")

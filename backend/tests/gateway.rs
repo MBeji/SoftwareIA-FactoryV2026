@@ -67,7 +67,10 @@ fn script(phase: &str, step: usize) -> (Option<String>, Vec<Value>) {
         ),
         ("red", 0) => (
             None,
-            vec![tool_call("call_1", "write_file", json!({ "path": "tests/test_calc.py", "content": "from app.calc import add\n\n\ndef test_add():\n    assert add(2, 3) == 5\n" }))],
+            vec![
+                tool_call("call_0", "write_file", json!({ "path": "conftest.py", "content": "\"\"\"Makes the project root importable.\"\"\"\n" })),
+                tool_call("call_1", "write_file", json!({ "path": "tests/test_calc.py", "content": "from app.calc import add\n\n\ndef test_add():\n    assert add(2, 3) == 5\n" })),
+            ],
         ),
         ("green", 0) => (
             Some("Simplest implementation that satisfies the test.".into()),

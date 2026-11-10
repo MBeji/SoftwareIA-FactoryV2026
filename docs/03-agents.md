@@ -77,7 +77,8 @@ partie du contrat mais aucun fournisseur n'est branché dans le MVP (il répond 
   chemin nominal, cas limites et cas d'erreur.
 - **Entrées.** La tâche et ses critères d'acceptation ; l'architecture ; les retours du
   superviseur sur le plan de test ; le motif de rejet d'une phase RED invalide.
-- **Sorties.** Les fichiers de test ; la synthèse du plan de test ; pendant la boucle
+- **Sorties.** Les fichiers de test et leur configuration (par exemple `conftest.py`), pour
+  que le projet soit testable tel que livré ; la synthèse du plan de test ; pendant la boucle
   d'auto-correction, un **diagnostic structuré** d'un échec (cause racine, correctif).
 - **Règles.** Les tests doivent échouer maintenant, pour la bonne raison, et passer une fois
   la fonctionnalité correcte, sans dépendre de détails d'implémentation. Ne jamais écrire de

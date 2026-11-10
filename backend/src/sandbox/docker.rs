@@ -105,8 +105,6 @@ impl DockerSandbox {
             "-e",
             "HOME=/tmp",
             "-e",
-            "PYTHONPATH=/workspace",
-            "-e",
             "PYTHONDONTWRITEBYTECODE=1",
             "-e",
             "CI=1",

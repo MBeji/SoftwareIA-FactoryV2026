@@ -260,8 +260,9 @@ pub(crate) async fn run_task(
         let (result, report, new_tests) = loop {
             tries += 1;
             let instruction = format!(
-                "{brief}\n### Workspace files\n{}\n\n### Your assignment (RED phase)\nWrite the automated tests for this task, in test files only. They must fail now — the feature is not implemented yet — and pass once it is. Do not write production code.\n{}",
+                "{brief}\n### Workspace files\n{}\n\n### Your assignment (RED phase)\nWrite the automated tests for this task, in test files only. They must fail now — the feature is not implemented yet — and pass once it is. Do not write production code.\n\nThe orchestrator runs the tests with `{}` from the workspace root, with no extra environment (no PYTHONPATH, nothing installed in editable mode). The delivered project must be testable exactly like that by anyone who clones it: if imports need test configuration (for pytest, a `conftest.py` at the root or a `pythonpath` setting), provide it with the tests.\n{}",
                 file_listing(ctx),
+                ctx.cfg.sandbox.test_command,
                 note.as_deref().unwrap_or(""),
             );
             let result = ctx
@@ -283,11 +284,17 @@ pub(crate) async fn run_task(
                 .filter(|(p, c)| tests_before.get(*p) != Some(*c))
                 .map(|(p, _)| p.clone())
                 .collect();
-            // Only the new tests are run: they are the ones that must fail.
+            // Only the new tests are run: they are the ones that must fail. Shared test
+            // configuration (conftest.py) is not a test to run on its own.
+            let targets: Vec<String> = new_tests
+                .iter()
+                .filter(|path| !path.ends_with("conftest.py"))
+                .cloned()
+                .collect();
             let report = ctx
-                .verify_tests(Some(tid), "red", tries, "fail", &new_tests)
+                .verify_tests(Some(tid), "red", tries, "fail", &targets)
                 .await?;
-            match validate_red(&report, &new_tests) {
+            match validate_red(&report, &targets) {
                 Ok(()) => break (result, report, new_tests),
                 Err(reason) if tries < 2 => {
                     ctx.emitter.log(
@@ -309,8 +316,13 @@ pub(crate) async fn run_task(
         ctx.commit(&format!("test(red): {} — {}", task.id, task.title))
             .await?;
 
-        let test_files: Vec<Value> = new_tests
+        // Tests first, their configuration last: that is the reading order of a reviewer.
+        let (config, tests): (Vec<&String>, Vec<&String>) = new_tests
             .iter()
+            .partition(|path| path.ends_with("conftest.py"));
+        let test_files: Vec<Value> = tests
+            .into_iter()
+            .chain(config)
             .map(|path| json!({ "path": path, "content": ctx.ws().read(path).unwrap_or_default() }))
             .collect();
         let outcome = ctx

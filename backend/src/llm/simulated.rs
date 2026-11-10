@@ -204,6 +204,15 @@ fn py_list(items: &[String]) -> String {
     serde_json::to_string(items).unwrap_or_else(|_| "[]".into())
 }
 
+/// A `conftest.py` at the project root makes pytest put that root on `sys.path`: the tests
+/// can import the project without any environment variable.
+const CONFTEST: &str = r#""""Test configuration.
+
+Its presence at the project root is what lets a plain `pytest` import the project's
+packages: no PYTHONPATH or editable install is needed.
+"""
+"#;
+
 const JWT_TESTS: &str = r#""""Tests (RED) — HS256 JSON Web Tokens."""
 
 import base64
@@ -454,7 +463,11 @@ fn respond(request: &LlmRequest) -> (Option<String>, Vec<ToolCall>) {
         // ---- QA: RED ------------------------------------------------------------------
         ("red", 0) => say(
             "Je traduis chaque critère d'acceptation en un test précis. Ces tests doivent échouer tant que le code n'existe pas.",
-            vec![call(step, 0, "write_file", json!({ "path": script.test_path(), "content": script.tests() }))],
+            vec![
+                // The project must be testable as delivered, with a plain `pytest`.
+                call(step, 0, "write_file", json!({ "path": "conftest.py", "content": CONFTEST })),
+                call(step, 1, "write_file", json!({ "path": script.test_path(), "content": script.tests() })),
+            ],
         ),
         ("red", _) => finish(
             step,

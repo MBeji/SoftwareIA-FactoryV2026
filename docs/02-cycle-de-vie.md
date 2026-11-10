@@ -94,6 +94,13 @@ nouveaux tests** et exige qu'ils échouent pour la bonne raison :
 | Les tests passent déjà | Rejet : ils ne vérifient rien, ou la fonctionnalité existe |
 | Aucun test écrit ou collecté, erreur de syntaxe, délai dépassé | Rejet |
 
+Les tests sont lancés tels quels, depuis la racine du workspace, sans variable
+d'environnement d'appoint (pas de `PYTHONPATH`) : le projet livré doit passer ses tests chez
+quiconque le clone. C'est donc à QA de fournir, avec les tests, la configuration qui les rend
+exécutables — par exemple un `conftest.py` à la racine. Si la commande de test elle-même est
+introuvable dans la sandbox, le run s'arrête aussitôt avec une erreur explicite : ce n'est
+pas un test rouge.
+
 Un rejet renvoie le motif à QA pour une seconde tentative ; un second rejet lève
 l'exception bloquante `vacuous_tests`. Les tests sont commités (`test(red): …`), puis
 **verrouillés**. → `tdd.test_result` · **portail `test_plan`**
