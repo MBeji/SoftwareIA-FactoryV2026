@@ -1,0 +1,72 @@
+# OmniForge AI — proxy multi-modèles (LiteLLM)
+#
+# Le backend Rust ne connaît que des ALIAS (omniforge-reasoning, omniforge-coder…) et
+# n'embarque aucun SDK fournisseur : c'est ce fichier qui associe chaque alias à un modèle
+# concret. Changer de fournisseur, passer en local ou ajouter un déploiement de secours se
+# fait ici, sans toucher au code ni au routage (config/omniforge.toml).
+#
+#   alias                 rôle dans la factory                       palier(s) de routage
+#   omniforge-reasoning   planification, architecture, code complexe reasoning
+#   omniforge-coder       implémentation courante                    coder
+#   omniforge-critic      tests, critique, audit (autre fournisseur) critic
+#   omniforge-fast        secours bon marché des tâches de routine   routine (repli)
+#   omniforge-local       lint, parsing, classification, résumés     routine
+#
+# Les identifiants ci-dessous existent dans la table de prix de LiteLLM 1.108 (nov. 2026).
+# Les catalogues évoluent vite : adaptez-les à vos contrats, puis alignez les prix de repli
+# de [routing.pricing] dans config/omniforge.toml.
+#
+# Lancement : litellm --config config/litellm.config.yaml --port 4000
+# (ou `docker compose up litellm`).
+
+model_list:
+  # --- Raisonnement long : planification, architecture, code complexe -------------------
+  - model_name: omniforge-reasoning
+    litellm_params:
+      model: anthropic/claude-opus-5-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # --- Implémentation courante ----------------------------------------------------------
+  - model_name: omniforge-coder
+    litellm_params:
+      model: anthropic/claude-sonnet-5-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # --- Tests et critique : un fournisseur DIFFÉRENT du codeur, pour que l'évaluateur ne
+  #     partage pas les angles morts du modèle qu'il évalue ---------------------------------
+  - model_name: omniforge-critic
+    litellm_params:
+      model: openai/gpt-6.1-sol
+      api_key: os.environ/OPENAI_API_KEY
+
+  # --- Petit modèle hébergé : secours des tâches de routine si le modèle local est absent -
+  - model_name: omniforge-fast
+    litellm_params:
+      model: anthropic/claude-haiku-5-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # --- Modèle open-source local (Ollama) : lint, parsing, classification, résumés --------
+  # Le modèle doit gérer l'appel d'outils (function calling) : llama3.1 le fait.
+  # Variantes : ollama_chat/qwen2.5-coder, ou un DeepSeek hébergé (deepseek/deepseek-chat
+  # avec api_key: os.environ/DEEPSEEK_API_KEY), ou tout serveur vLLM compatible OpenAI
+  # (model: openai/<nom>, api_base: http://vllm:8000/v1).
+  - model_name: omniforge-local
+    litellm_params:
+      model: ollama_chat/llama3.1
+      api_base: os.environ/OLLAMA_API_BASE
+
+litellm_settings:
+  # Ignore les paramètres qu'un fournisseur ne gère pas (temperature sur certains modèles
+  # de raisonnement, response_format…) au lieu d'échouer : indispensable en multi-modèles.
+  drop_params: true
+  # Reprises sur erreurs transitoires (429, 5xx) avant de rendre la main au routeur
+  # OmniForge, qui bascule alors sur l'alias suivant du palier.
+  num_retries: 2
+  request_timeout: 600
+
+general_settings:
+  # Clé d'administration du proxy : c'est elle qu'OmniForge présente par défaut
+  # (OMNIFORGE_LLM_API_KEY). Les clés fournisseurs, elles, ne quittent jamais le proxy.
+  # En production, adossez LiteLLM à une base Postgres (database_url) et créez une clé
+  # virtuelle dédiée à OmniForge, avec son propre budget (POST /key/generate).
+  master_key: os.environ/LITELLM_MASTER_KEY

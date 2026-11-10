@@ -1,0 +1,89 @@
+# OmniForge AI — pile complète.
+#
+#   docker compose up --build                 démo hors-ligne (LLM simulé, sandbox Docker)
+#   docker compose --profile llm up --build   avec le proxy LiteLLM (vrais modèles)
+#
+# Voir .env.example pour les variables. IHM : http://localhost:3000 — API : http://localhost:8080
+name: omniforge
+
+services:
+  # Construit l'image dans laquelle les agents exécutent leurs commandes. Ce n'est pas un
+  # service : il se termine aussitôt, l'API lance ensuite un conteneur de cette image par run.
+  sandbox-image:
+    build: ./sandbox
+    image: omniforge-sandbox:latest
+    command: ["true"]
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    depends_on:
+      sandbox-image:
+        condition: service_completed_successfully
+    environment:
+      OMNIFORGE_CONFIG: /etc/omniforge/omniforge.compose.toml
+      OMNIFORGE_LLM_MODE: ${OMNIFORGE_LLM_MODE:-simulated}
+      OMNIFORGE_LLM_BASE_URL: http://litellm:4000/v1
+      OMNIFORGE_LLM_API_KEY: ${LITELLM_MASTER_KEY:-}
+      OMNIFORGE_API_KEY: ${OMNIFORGE_API_KEY:-}
+      OMNIFORGE_CORS_ORIGINS: ${OMNIFORGE_CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      OMNIFORGE_SIM_DELAY_MS: ${OMNIFORGE_SIM_DELAY_MS:-400}
+    # L'API pilote le démon Docker de l'hôte pour créer les sandboxes : elle doit appartenir
+    # au groupe propriétaire du socket (DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)).
+    # Ce montage équivaut à un accès root sur l'hôte : voir docs/01-architecture.md §Sécurité.
+    group_add:
+      - "${DOCKER_GID:-0}"
+    volumes:
+      - omniforge-data:/data
+      - ./config/omniforge.compose.toml:/etc/omniforge/omniforge.compose.toml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "127.0.0.1:8080:8080"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+      args:
+        # Adresse de l'API vue par le NAVIGATEUR (figée à la construction de l'image).
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+        NEXT_PUBLIC_API_KEY: ${OMNIFORGE_API_KEY:-}
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+
+  # Proxy multi-modèles : associe les alias omniforge-* aux modèles des fournisseurs.
+  litellm:
+    profiles: ["llm"]
+    image: ghcr.io/berriai/litellm:main-stable
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OLLAMA_API_BASE: ${OLLAMA_API_BASE:-http://ollama:11434}
+      # À définir dans .env. Le proxy n'est joignable que depuis le réseau interne de la
+      # pile (aucun port publié), mais une clé reste indispensable dès qu'on l'expose.
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-}
+    volumes:
+      - ./config/litellm.config.yaml:/app/config.yaml:ro
+    restart: unless-stopped
+
+  # Modèles open-source locaux pour le palier « routine » (optionnel).
+  # Après le premier démarrage : docker compose exec ollama ollama pull llama3.1
+  ollama:
+    profiles: ["local-models"]
+    image: ollama/ollama
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  # Nom fixe : l'API le référence pour monter, dans chaque sandbox, le seul
+  # sous-répertoire de son run (config/omniforge.compose.toml).
+  omniforge-data:
+    name: omniforge-data
+  ollama:

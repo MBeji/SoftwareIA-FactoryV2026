@@ -1,0 +1,10 @@
+# Profil utilisé par docker-compose : identique aux valeurs par défaut, plus le montage des
+# workspaces par volume nommé (l'API tourne elle-même dans un conteneur et pilote le démon
+# Docker de l'hôte : un chemin de son propre système de fichiers n'aurait aucun sens pour
+# le démon). Chaque sandbox ne voit que le sous-répertoire de son run.
+
+[sandbox]
+kind = "docker"
+image = "omniforge-sandbox:latest"
+volume = "omniforge-data"
+volume_root = "/data"

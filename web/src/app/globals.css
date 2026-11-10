@@ -1,0 +1,97 @@
+@import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
+
+/* Mission-control palette: one dark surface scale, one accent, four semantic hues. */
+@theme {
+  --color-canvas: #070b11;
+  --color-panel: #0d131c;
+  --color-raised: #131b27;
+  --color-hover: #1a2433;
+  --color-line: #1f2a3a;
+  --color-line-strong: #2e3d53;
+  --color-ink: #dde5ef;
+  --color-dim: #9aa9bc;
+  --color-faint: #6f7f94;
+  --color-accent: #38bdf8;
+  --color-accent-ink: #04131d;
+  --color-ok: #34d399;
+  --color-warn: #fbbf24;
+  --color-bad: #f87171;
+  --color-violet: #a78bfa;
+  --color-info: #60a5fa;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+  --animate-token: token 1.8s ease-out infinite;
+  --animate-appear: appear 0.18s ease-out;
+
+  @keyframes token {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--token-color, var(--color-accent)) 55%, transparent);
+    }
+    100% {
+      box-shadow: 0 0 0 14px transparent;
+    }
+  }
+  @keyframes appear {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+}
+
+/* Thin, unobtrusive scrollbars inside dense panels. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* React Flow, restyled to sit on the dashboard surface. */
+.react-flow {
+  --xy-background-color: transparent;
+  --xy-edge-stroke: var(--color-line-strong);
+  --xy-edge-stroke-selected: var(--color-accent);
+  --xy-attribution-background-color: transparent;
+  --xy-controls-button-background-color: var(--color-raised);
+  --xy-controls-button-background-color-hover: var(--color-hover);
+  --xy-controls-button-color: var(--color-dim);
+  --xy-controls-button-border-color: var(--color-line);
+}
+.react-flow__attribution a {
+  color: var(--color-faint);
+}
+.react-flow__node {
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,45 @@
+[package]
+name = "omniforge"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+description = "OmniForge AI — agentic software factory (orchestrator, TDD loop, supervision matrix, LLM router, sandbox manager)"
+license = "Apache-2.0"
+
+[lib]
+name = "omniforge"
+path = "src/lib.rs"
+
+[[bin]]
+name = "omniforge"
+path = "src/main.rs"
+
+[dependencies]
+async-trait = "0.1"
+axum = { version = "0.8", features = ["ws", "multipart", "macros"] }
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive", "env"] }
+futures = "0.3"
+regex = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+similar = "2"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+toml = "0.8"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4"] }
+walkdir = "2"
+
+[dev-dependencies]
+tempfile = "3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = true

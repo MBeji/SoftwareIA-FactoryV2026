@@ -1,0 +1,103 @@
+# OmniForge AI — profil de la factory
+#
+# Ce fichier reprend les valeurs par défaut compilées dans le backend (un test vérifie
+# qu'elles restent synchronisées). Copiez-le, modifiez-le, puis pointez OMNIFORGE_CONFIG
+# dessus pour surcharger le routage, la supervision ou les limites de la sandbox.
+
+# ---------------------------------------------------------------------------------------
+# Routage multi-modèles : nature de la tâche → palier → alias de modèles
+# Les alias sont résolus en modèles concrets par le proxy LiteLLM (litellm.config.yaml) :
+# changer de fournisseur ne touche ni ce fichier ni le code.
+# ---------------------------------------------------------------------------------------
+[routing]
+# Échelle de capacité, du moins cher au plus capable. Les échecs répétés (boucle TDD) la
+# font monter ; un budget presque épuisé la fait descendre.
+escalation = ["routine", "coder", "reasoning"]
+# En dessous de cette fraction de budget restant, les appels descendent d'un palier.
+low_budget_ratio = 0.15
+
+[routing.tiers.reasoning]
+description = "Raisonnement long : planification, architecture, code complexe"
+models = ["omniforge-reasoning", "omniforge-coder"]
+
+[routing.tiers.coder]
+description = "Implémentation courante, bon rapport qualité/coût"
+models = ["omniforge-coder", "omniforge-reasoning"]
+
+[routing.tiers.critic]
+description = "Tests et critique par un fournisseur différent du codeur (erreurs décorrélées)"
+models = ["omniforge-critic", "omniforge-coder"]
+
+[routing.tiers.routine]
+description = "Tâches de routine à très faible coût : lint, parsing, classification, résumés"
+models = ["omniforge-local", "omniforge-fast"]
+
+[routing.routes]
+planning = "reasoning"
+architecture = "reasoning"
+complex_code = "reasoning"
+code = "coder"
+test_generation = "critic"
+critique = "critic"
+security_review = "critic"
+lint_fix = "routine"
+classification = "routine"
+summarization = "routine"
+
+# Prix de repli en USD par million de tokens, utilisés uniquement quand la passerelle ne
+# renvoie pas le coût réel de l'appel (LiteLLM le fournit dans x-litellm-response-cost).
+# À aligner sur les modèles réellement configurés dans litellm.config.yaml.
+[routing.pricing]
+omniforge-reasoning = { input = 4.0, output = 20.0 }
+omniforge-coder = { input = 2.0, output = 10.0 }
+omniforge-critic = { input = 2.0, output = 10.0 }
+omniforge-fast = { input = 0.1, output = 0.5 }
+omniforge-local = { input = 0.0, output = 0.0 }
+
+# ---------------------------------------------------------------------------------------
+# Matrice de supervision par défaut (surchargée par projet / par run / en cours de run)
+# ---------------------------------------------------------------------------------------
+[supervision]
+# hitl = pause à chaque étape clé | hotl = pause sur exception | autonomous = zéro contact
+default_mode = "hotl"
+# HOTL : pause si la confiance d'un agent passe sous ce seuil.
+confidence_threshold = 0.7
+# Tentatives GREEN avant de déclarer la boucle TDD divergente.
+max_tdd_iterations = 4
+# Tours de « demander des modifications » acceptés sur un même portail.
+max_revisions = 2
+# Findings de sécurité bloquants à partir de cette sévérité.
+block_on_severity = "high"
+# budget_usd = 5.0        # plafond de dépense LLM par run (absent = illimité)
+# gate_timeout_s = 86400  # rejet automatique d'un portail sans réponse (absent = attente)
+
+# Surcharges par étape : plan, architecture, test_plan, implementation, security, merge, budget
+[supervision.stage_overrides]
+# merge = "hitl"          # ex. : tout automatique, sauf la merge request finale
+
+# ---------------------------------------------------------------------------------------
+# Sandbox d'exécution
+# ---------------------------------------------------------------------------------------
+[sandbox]
+kind = "docker"           # "docker" (isolé) | "local" (aucune isolation : démo et tests)
+image = "omniforge-sandbox:latest"
+network = "none"          # aucun accès réseau depuis la sandbox
+memory = "1g"
+cpus = "1.0"
+pids_limit = 256
+exec_timeout_s = 120
+test_command = "pytest -q --tb=short -p no:cacheprovider"
+lint_command = "if command -v ruff >/dev/null 2>&1; then ruff check --no-cache .; else python3 -m compileall -q .; fi"
+# runtime = "runsc"       # gVisor ; ou "kata-runtime" pour des microVMs
+# user = "1000:1000"      # par défaut : l'utilisateur du processus backend
+# volume = "omniforge-data"   # déploiement conteneurisé : volume partagé avec l'API…
+# volume_root = "/data"       # …et son point de montage dans le conteneur de l'API
+
+[planning]
+sprint_capacity_points = 13
+
+[agents]
+max_steps = 16
+escalate_after_failures = 2
+max_security_fix_rounds = 2
+max_concurrent_runs = 4

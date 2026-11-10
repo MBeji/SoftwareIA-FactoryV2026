@@ -1,0 +1,23 @@
+[
+  {
+    "id": "micro",
+    "level": 1,
+    "label": "Micro-tâche",
+    "hint": "User story simple",
+    "input": "Créer un endpoint FastAPI sécurisé avec JWT"
+  },
+  {
+    "id": "epic",
+    "level": 2,
+    "label": "Epic",
+    "hint": "Périmètre fonctionnel",
+    "input": "Implémenter le module de facturation avec Stripe, webhooks et dashboard"
+  },
+  {
+    "id": "prd",
+    "level": 3,
+    "label": "Cahier des charges",
+    "hint": "PRD Markdown",
+    "input": "# Plateforme de réservation de salles\n\nLes équipes réservent des salles de réunion et règlent les réservations payantes en ligne.\n\n## Authentification\n- Inscription par e-mail\n  - Le mot de passe est haché\n  - Un e-mail en double est refusé\n- Connexion avec jeton JWT\n\n## Réservations\n- Modèle de données des salles\n- Création d'une réservation par un utilisateur\n- Tableau de bord des réservations\n\n## Paiement\n- Paiement en ligne avec Stripe\n- Webhooks de confirmation\n"
+  }
+]
