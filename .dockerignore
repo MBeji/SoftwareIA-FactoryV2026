@@ -1,0 +1,8 @@
+.git
+**/target
+**/node_modules
+**/.next
+data
+backend/data
+docs/screenshots
+.env

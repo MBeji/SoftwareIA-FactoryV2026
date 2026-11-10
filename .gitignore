@@ -1,0 +1,22 @@
+# Rust
+backend/target/
+
+# Node / Next.js
+node_modules/
+web/.next/
+web/out/
+*.tsbuildinfo
+
+# Runtime data (event store, run workspaces)
+data/
+backend/data/
+
+# Secrets and local settings
+.env
+.env.local
+web/.env.local
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
