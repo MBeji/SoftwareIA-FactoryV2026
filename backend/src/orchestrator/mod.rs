@@ -177,7 +177,7 @@ impl RunCtx {
         attempt: u32,
         expected: &str,
         targets: &[String],
-    ) -> TestReport {
+    ) -> Result<TestReport> {
         let mut command = self.cfg.sandbox.test_command.clone();
         for target in targets {
             command.push(' ');
@@ -197,7 +197,14 @@ impl RunCtx {
                 "report": report,
             }),
         );
-        report
+        if report.runner_unavailable() {
+            let detail: String = report.output.lines().take(3).collect::<Vec<_>>().join(" ");
+            return Err(Error::Sandbox(format!(
+                "la commande de test ne peut pas s'exécuter dans la sandbox (code {}) : `{}` — {detail}",
+                report.exit_code, self.cfg.sandbox.test_command
+            )));
+        }
+        Ok(report)
     }
 
     /// Submits a checkpoint to the supervision matrix. Policy violations raised by agent

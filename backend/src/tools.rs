@@ -166,6 +166,13 @@ impl TestReport {
         }
     }
 
+    /// The shell could not run the test command at all (126: not executable, 127: not
+    /// found), or the sandbox itself failed. That is an environment problem, not a test
+    /// verdict: no agent can fix it, and "the tests are red" would be the wrong conclusion.
+    pub fn runner_unavailable(&self) -> bool {
+        matches!(self.exit_code, 126 | 127 | -1)
+    }
+
     pub fn summary(&self) -> String {
         if self.timed_out {
             return "tests interrompus (délai dépassé)".to_string();

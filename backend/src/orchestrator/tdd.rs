@@ -286,7 +286,7 @@ pub(crate) async fn run_task(
             // Only the new tests are run: they are the ones that must fail.
             let report = ctx
                 .verify_tests(Some(tid), "red", tries, "fail", &new_tests)
-                .await;
+                .await?;
             match validate_red(&report, &new_tests) {
                 Ok(()) => break (result, report, new_tests),
                 Err(reason) if tries < 2 => {
@@ -418,7 +418,7 @@ pub(crate) async fn run_task(
         // The verdict belongs to the orchestrator: full suite, in the sandbox.
         let report = ctx
             .verify_tests(Some(tid), "green", attempt, "pass", &[])
-            .await;
+            .await?;
         if report.ok {
             break report;
         }
@@ -507,7 +507,7 @@ pub(crate) async fn run_task(
         ctx.restore_locked_tests(&locked_tests, tid);
         let report = ctx
             .verify_tests(Some(tid), "refactor", 1, "pass", &[])
-            .await;
+            .await?;
         if report.ok {
             ctx.commit(&format!("refactor: {} — lint", task.id)).await?;
             final_report = report;

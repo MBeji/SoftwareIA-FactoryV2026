@@ -548,7 +548,7 @@ async fn audit_stage(ctx: &RunCtx, plan: &Plan, outcomes: &[TddOutcome]) -> Resu
                     "pass",
                     &[],
                 )
-                .await;
+                .await?;
             if report.ok {
                 ctx.commit(&format!("fix(security): round {round}")).await?;
             } else {
@@ -608,7 +608,7 @@ async fn revise(ctx: &RunCtx, plan: &Plan, request: &str, commit_message: &str) 
     ))
     .await?;
     ctx.restore_locked_tests(&locked, "revision");
-    let report = ctx.verify_tests(None, "revision", 1, "pass", &[]).await;
+    let report = ctx.verify_tests(None, "revision", 1, "pass", &[]).await?;
     if report.ok {
         ctx.commit(commit_message).await?;
         Ok(true)
@@ -684,7 +684,7 @@ async fn delivery_stage(
         // Never deliver on a stale verdict: the full suite runs one last time.
         let tests = ctx
             .verify_tests(None, "delivery", revision + 1, "pass", &[])
-            .await;
+            .await?;
         if !tests.ok {
             return Err(Error::Aborted(format!(
                 "livraison refusée : la suite de tests est rouge ({})",

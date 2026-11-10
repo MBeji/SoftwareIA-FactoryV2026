@@ -641,3 +641,33 @@ async fn a_developer_cannot_pass_by_rewriting_the_locked_tests() {
     let content = ws.read(&tests[0]).unwrap();
     assert!(content.contains("def test_feature_is_ready") && !content.contains("test_ok"));
 }
+
+#[tokio::test]
+async fn a_missing_test_runner_stops_the_run_at_once_with_a_clear_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut config = omniforge::config::FactoryConfig::default();
+    config.sandbox.test_command = "no-such-test-runner --quiet".into();
+    let orchestrator = Orchestrator::assemble(
+        Settings::for_tests(dir.path()),
+        config,
+        omniforge::events::EventStore::open(None).unwrap(),
+        std::sync::Arc::new(omniforge::llm::simulated::SimulatedBackend::new(0)),
+    )
+    .unwrap();
+    let run = orchestrator
+        .start_run(request(JWT_TASK, policy(SupervisionMode::Autonomous)))
+        .unwrap();
+    let (state, events) = drive(&orchestrator, &run.id, |_| panic!("autonomous")).await;
+
+    // "Command not found" is not a red test: the run must not burn GREEN attempts on it.
+    assert_eq!(state.status, RunStatus::Failed);
+    let error = state.error.unwrap();
+    assert!(
+        error.contains("commande de test") && error.contains("no-such-test-runner"),
+        "{error}"
+    );
+    assert_eq!(of_kind(&events, EventType::TddTestResult).len(), 1);
+    assert!(of_kind(&events, EventType::TddPhaseChanged)
+        .iter()
+        .all(|e| e.payload["phase"] == "red"));
+}

@@ -66,6 +66,23 @@ impl Server {
         for _ in 0..600 {
             let (_, state) = self.get(&format!("/api/runs/{run_id}")).await;
             if statuses.contains(&state["status"].as_str().unwrap_or_default()) {
+                if let Some(error) = state["error"].as_str() {
+                    // Explain an unexpected ending with the last test verdict of the run.
+                    let (_, log) = self.get(&format!("/api/runs/{run_id}/events")).await;
+                    let last_tests = log["events"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .rfind(|e| e["type"] == "tdd.test_result")
+                        .map(|e| {
+                            e["payload"]["report"]["output"]
+                                .as_str()
+                                .unwrap_or_default()
+                                .to_string()
+                        })
+                        .unwrap_or_else(|| "(no test run)".into());
+                    eprintln!("run {run_id} ended with: {error}\n--- last test output ---\n{last_tests}\n---");
+                }
                 return state;
             }
             tokio::time::sleep(Duration::from_millis(50)).await;

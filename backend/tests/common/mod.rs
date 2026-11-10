@@ -94,6 +94,20 @@ pub async fn drive(
             ),
         }
     }
+    // A run that did not complete explains itself in the test output: the verdict of its
+    // last test execution is what a failing assertion needs.
+    if let Some(error) = orchestrator.state(run_id).ok().and_then(|s| s.error) {
+        let last_tests = of_kind(&events, EventType::TddTestResult)
+            .last()
+            .map(|e| {
+                e.payload["report"]["output"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string()
+            })
+            .unwrap_or_else(|| "(no test run)".into());
+        eprintln!("run {run_id} ended with: {error}\n--- last test output ---\n{last_tests}\n---");
+    }
     // Let the run task finish its bookkeeping (sandbox stop, registry removal).
     for _ in 0..100 {
         if orchestrator
